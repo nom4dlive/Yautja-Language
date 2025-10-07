@@ -2,30 +2,56 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, ChangeEvent } from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 
 const YAUTJA_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
+// A animação começa com todos os sliders de efeito em 0.
 const defaultConfig = {
-    density: 150,
-    speed: 5,
-    size: 24,
+    density: 100,
+    speed: 0,
+    size: 20,
     color: '#DC143C',
-    glitch: 10,
-    charMutationRate: 20,
-    baseOpacity: 90,
+    glitch: 0,
+    charMutationRate: 0,
+    baseOpacity: 100,
     mode: 'rain',
     gridCols: 25,
     gridRows: 15,
-    charSpacing: 4,
-    glitchTime: 50,
+    charSpacing: 0,
+    glitchTime: 10,
     randomMove: 0,
-    glowIntensity: 8,
+    glowIntensity: 0,
     blurIntensity: 0,
-    opacityFlicker: 20,
+    opacityFlicker: 0,
     respawnRate: 98
+};
+
+const presets = {
+    rain: { ...defaultConfig, mode: 'rain', speed: 5, charMutationRate: 20, glowIntensity: 8, density: 150, size: 24, baseOpacity: 90, opacityFlicker: 20 },
+    grid: { ...defaultConfig, mode: 'grid', speed: 2, glitch: 20, glowIntensity: 12, charMutationRate: 5 },
+    overload: {
+        ...defaultConfig,
+        mode: 'rain',
+        density: 300,
+        speed: 15,
+        glitch: 50,
+        charMutationRate: 70,
+        glowIntensity: 15,
+        opacityFlicker: 20,
+        randomMove: 2,
+    },
+    stealth: {
+        ...defaultConfig,
+        mode: 'rain',
+        speed: 2,
+        baseOpacity: 60,
+        glowIntensity: 4,
+        color: '#00FF7F',
+        glitch: 5,
+    }
 };
 
 const getRandomChar = () => YAUTJA_CHARS.charAt(Math.floor(Math.random() * YAUTJA_CHARS.length));
@@ -54,23 +80,18 @@ class YautjaChar {
     positionInGrid(config, canvas) {
         const colIndex = this.index % config.gridCols;
         const rowIndex = Math.floor(this.index / config.gridCols);
-
         const spacing = config.size + config.charSpacing;
         const totalWidth = config.gridCols * spacing;
         const totalHeight = config.gridRows * spacing;
-
         const centerX = (canvas.width - totalWidth) / 2;
         const centerY = (canvas.height - totalHeight) / 2;
-
         this.x = centerX + colIndex * spacing + (config.size * 0.5);
         this.y = centerY + rowIndex * spacing + (config.size * 0.5);
     }
 
     update(delta, config, canvas) {
         const effectiveMutationRate = config.charMutationRate * config.speed * 0.001;
-        if (Math.random() < effectiveMutationRate) {
-            this.char = getRandomChar();
-        }
+        if (Math.random() < effectiveMutationRate) this.char = getRandomChar();
 
         if (config.mode === 'rain') {
             this.y += (config.speed * delta) / 16;
@@ -111,54 +132,113 @@ class YautjaChar {
     }
 }
 
+function ControlsPanel({ config, setConfig, handleConfigChange }) {
+    const [activeTab, setActiveTab] = useState('animation');
+
+    const applyPreset = (presetName) => {
+        setConfig(presets[presetName]);
+    };
+    
+    const setMode = (modeName) => {
+        setConfig(prevConfig => ({ ...prevConfig, mode: modeName }));
+    };
+
+    const tabs = {
+        general: 'Geral',
+        animation: 'Animação',
+        appearance: 'Aparência',
+        layout: 'Layout',
+        effects: 'Efeitos',
+    };
+
+    return (
+        <div id="controls-panel">
+            <div className="presets-container">
+                <label className="text-lg">Presets</label>
+                <div className="preset-buttons">
+                    {Object.keys(presets).map(name => (
+                        <button key={name} onClick={() => applyPreset(name)} className="preset-button">{name}</button>
+                    ))}
+                </div>
+            </div>
+
+            <div className="tabs-container">
+                {Object.entries(tabs).map(([key, name]) => (
+                    <button key={key} onClick={() => setActiveTab(key)} className={`tab-button ${activeTab === key ? 'active' : ''}`}>{name}</button>
+                ))}
+            </div>
+
+            <div className="controls-grid">
+                {activeTab === 'general' && (
+                    <>
+                        <div className="flex flex-row justify-center gap-2">
+                            <button onClick={() => setMode('rain')} className={`mode-button ${config.mode === 'rain' ? 'active' : ''}`}>Chuva Matrix</button>
+                            <button onClick={() => setMode('static')} className={`mode-button ${config.mode === 'static' ? 'active' : ''}`}>Grade Aleatória</button>
+                            <button onClick={() => setMode('grid')} className={`mode-button ${config.mode === 'grid' ? 'active' : ''}`}>Grade Fixa</button>
+                        </div>
+                        <ControlInput label="Cor" id="color" type="color" value={config.color} onChange={handleConfigChange} />
+                    </>
+                )}
+                {activeTab === 'animation' && (
+                    <>
+                        <ControlInput label="Velocidade" id="speed" value={config.speed} min={0} max={20} onChange={handleConfigChange} />
+                        <ControlInput label="Mutação Símbolo" id="charMutationRate" value={config.charMutationRate} min={0} max={100} onChange={handleConfigChange} unit="%" />
+                        <ControlInput label="Taxa de Respawn" id="respawnRate" value={config.respawnRate} min={80} max={100} onChange={handleConfigChange} unit="%" />
+                    </>
+                )}
+                {activeTab === 'appearance' && (
+                    <>
+                        <ControlInput label="Tamanho" id="size" value={config.size} min={10} max={60} onChange={handleConfigChange} unit="px" />
+                        <ControlInput label="Opacidade Base" id="baseOpacity" value={config.baseOpacity} min={0} max={100} onChange={handleConfigChange} unit="%" />
+                        <ControlInput label="Brilho (Glow)" id="glowIntensity" value={config.glowIntensity} min={0} max={20} onChange={handleConfigChange} unit="px" />
+                        <ControlInput label="Desfoque (Blur)" id="blurIntensity" value={config.blurIntensity} min={0} max={5} onChange={handleConfigChange} unit="px" />
+                    </>
+                )}
+                {activeTab === 'layout' && (
+                    <>
+                        {config.mode === 'rain' || config.mode === 'static' ?
+                            <ControlInput label="Símbolos Ativos" id="density" value={config.density} min={10} max={300} onChange={handleConfigChange} />
+                            :
+                            <>
+                                <ControlInput label="Colunas (Grid)" id="gridCols" value={config.gridCols} min={5} max={50} onChange={handleConfigChange} />
+                                <ControlInput label="Linhas (Grid)" id="gridRows" value={config.gridRows} min={5} max={30} onChange={handleConfigChange} />
+                                <ControlInput label="Espaçamento" id="charSpacing" value={config.charSpacing} min={0} max={20} onChange={handleConfigChange} unit="px" />
+                            </>
+                        }
+                    </>
+                )}
+                {activeTab === 'effects' && (
+                    <>
+                        <ControlInput label="Flicker (Posição)" id="glitch" value={config.glitch} min={0} max={100} onChange={handleConfigChange} unit="%" />
+                        <ControlInput label="Tempo de Flicker" id="glitchTime" value={config.glitchTime} min={10} max={500} onChange={handleConfigChange} unit="ms" />
+                        <ControlInput label="Mov. Aleatório" id="randomMove" value={config.randomMove} min={0} max={10} onChange={handleConfigChange} unit="px" />
+                        <ControlInput label="Opacidade Flicker" id="opacityFlicker" value={config.opacityFlicker} min={0} max={50} onChange={handleConfigChange} unit="%" />
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
 
 function App() {
     const canvasRef = useRef(null);
     const animationFrameId = useRef(null);
     const lastTimeRef = useRef(performance.now());
     const charsRef = useRef([]);
-    
-    const [config, setConfig] = useState(() => {
-        try {
-            const savedConfig = localStorage.getItem('yautjaConfig');
-            if (savedConfig) {
-                return { ...defaultConfig, ...JSON.parse(savedConfig) };
-            }
-        } catch (error) {
-            console.error("Failed to load or parse config from localStorage:", error);
-        }
-        return defaultConfig;
-    });
-    
+    const [config, setConfig] = useState(defaultConfig);
     const configRef = useRef(config);
     configRef.current = config;
 
-    useEffect(() => {
-        try {
-            localStorage.setItem('yautjaConfig', JSON.stringify(config));
-        } catch (error) {
-            console.error("Failed to save config to localStorage:", error);
-        }
-    }, [config]);
-
+    const [isControlsVisible, setIsControlsVisible] = useState(false);
     const [copyButtonText, setCopyButtonText] = useState('Copiar Código');
     const embedCodeRef = useRef(null);
-    const [isRecording, setIsRecording] = useState(false);
-    const [exportDuration, setExportDuration] = useState(5);
-    const mediaRecorderRef = useRef(null);
-    const recordedChunksRef = useRef([]);
 
-
-    const handleConfigChange = (e) => {
+    const handleConfigChange = (e: ChangeEvent<HTMLInputElement>) => {
         const { id, value, type } = e.target;
         setConfig(prevConfig => ({
             ...prevConfig,
             [id]: type === 'range' ? parseFloat(value) : value,
         }));
-    };
-
-    const setMode = (modeName) => {
-        setConfig(prevConfig => ({ ...prevConfig, mode: modeName }));
     };
 
     const handleCopy = () => {
@@ -172,78 +252,18 @@ function App() {
         }
     };
 
-    const embedCode = `<iframe src="${window.location.href}" width="800" height="600" style="border:2px solid #DC143C; border-radius: 0.5rem; overflow: hidden;" title="Analisador Yautja"></iframe>`;
-
-
-    const handleStopRecording = useCallback(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-            mediaRecorderRef.current.stop();
-        }
-    }, []);
-
-    const handleStartRecording = useCallback(() => {
-        const canvas = canvasRef.current;
-        if (!canvas || isRecording) return;
-
-        if (!('MediaRecorder' in window)) {
-            alert('A API MediaRecorder não é suportada neste navegador.');
-            return;
-        }
-
-        const stream = canvas.captureStream(30); // 30 fps
-        try {
-            mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'video/webm' });
-        } catch (e) {
-            console.error("Erro ao criar MediaRecorder:", e);
-            alert("Não foi possível criar o gravador de vídeo. O formato pode não ser suportado.");
-            return;
-        }
-
-        recordedChunksRef.current = [];
-
-        mediaRecorderRef.current.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-                recordedChunksRef.current.push(event.data);
-            }
-        };
-
-        mediaRecorderRef.current.onstop = () => {
-            const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `yautja-animation-${Date.now()}.webm`;
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }, 100);
-            setIsRecording(false);
-        };
-
-        mediaRecorderRef.current.start();
-        setIsRecording(true);
-
-        setTimeout(() => {
-            handleStopRecording();
-        }, exportDuration * 1000);
-
-    }, [isRecording, exportDuration, handleStopRecording]);
-
+    const embedCode = `<iframe src="${window.location.href}" width="800" height="600" style="border:2px solid ${config.color}; border-radius: 0.5rem; overflow: hidden;" title="Analisador Yautja"></iframe>`;
 
     const animateLoop = useCallback((time) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         const currentConfig = configRef.current;
-
         const delta = time - lastTimeRef.current;
         lastTimeRef.current = time;
 
         ctx.fillStyle = currentConfig.mode === 'rain' ? 'rgba(0, 0, 0, 0.08)' : 'black';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-
         ctx.font = `${currentConfig.size}px 'Yautja', monospace`;
 
         charsRef.current.forEach(char => {
@@ -254,40 +274,31 @@ function App() {
         animationFrameId.current = requestAnimationFrame(animateLoop);
     }, []);
 
-    useEffect(() => {
+    const initCanvas = useCallback(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
+        if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+        
+        const canvasWrapper = canvas.parentElement;
+        canvas.width = canvasWrapper.clientWidth;
+        canvas.height = canvasWrapper.clientHeight;
 
-        const initChars = () => {
-            if (animationFrameId.current) {
-                cancelAnimationFrame(animationFrameId.current);
-            }
+        const count = config.mode === 'grid' ? config.gridCols * config.gridRows : config.density;
+        const newChars = Array.from({ length: count }, (_, i) => new YautjaChar(i, canvas));
+        charsRef.current = newChars;
 
-            const canvasWrapper = canvas.parentElement;
-            canvas.width = canvasWrapper.clientWidth;
-            canvas.height = canvasWrapper.clientHeight;
-
-            const newChars = [];
-            const count = config.mode === 'grid' ? config.gridCols * config.gridRows : config.density;
-            for (let i = 0; i < count; i++) {
-                newChars.push(new YautjaChar(i, canvas));
-            }
-            charsRef.current = newChars;
-
-            lastTimeRef.current = performance.now();
-            animationFrameId.current = requestAnimationFrame(animateLoop);
-        };
-
-        initChars();
-        window.addEventListener('resize', initChars);
-
-        return () => {
-            window.removeEventListener('resize', initChars);
-            if (animationFrameId.current) {
-                cancelAnimationFrame(animationFrameId.current);
-            }
-        };
+        lastTimeRef.current = performance.now();
+        animationFrameId.current = requestAnimationFrame(animateLoop);
     }, [config.mode, config.gridCols, config.gridRows, config.density, animateLoop]);
+
+    useEffect(() => {
+        initCanvas();
+        window.addEventListener('resize', initCanvas);
+        return () => {
+            window.removeEventListener('resize', initCanvas);
+            if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+        };
+    }, [initCanvas]);
 
     useEffect(() => {
         document.documentElement.style.setProperty('--predator-red', config.color);
@@ -297,103 +308,62 @@ function App() {
         }
     }, [config.color, config.blurIntensity]);
 
-
     return (
-        <div className="flex flex-col items-center max-w-5xl w-full p-0 mx-auto">
-            <header className="text-center mb-4">
-                <h1 className="text-3xl md:text-4xl text-predator-red neon-red-glow uppercase font-bold font-yautja-title">
-                    ANALISADOR YAUTJA
-                </h1>
-            </header>
-
-            <div id="canvas-wrapper">
-                <canvas id="yautja-canvas" ref={canvasRef}></canvas>
-            </div>
-
-            <fieldset disabled={isRecording}>
-                <div id="controls-floating">
-                    <div className="control-group w-full flex-row justify-center gap-2 mb-2 !text-white text-base">
-                        <button id="mode-rain" onClick={() => setMode('rain')} className={`mode-button px-3 py-1 text-xs md:text-sm rounded-md text-white ${config.mode === 'rain' ? 'active bg-red-700/80 border-white' : 'bg-red-800/50 hover:bg-red-700/80 border border-red-500'}`}>Chuva Matrix</button>
-                        <button id="mode-static" onClick={() => setMode('static')} className={`mode-button px-3 py-1 text-xs md:text-sm rounded-md text-white ${config.mode === 'static' ? 'active bg-red-700/80 border-white' : 'bg-red-800/50 hover:bg-red-700/80 border border-red-500'}`}>Grade Aleatória</button>
-                        <button id="mode-grid" onClick={() => setMode('grid')} className={`mode-button px-3 py-1 text-xs md:text-sm rounded-md text-white ${config.mode === 'grid' ? 'active bg-red-700/80 border-white' : 'bg-red-800/50 hover:bg-red-700/80 border border-red-500'}`}>Grade Fixa</button>
-                    </div>
-
-                    <div className="flex flex-wrap justify-center gap-4">
-                        {/* CONTROLS */}
-                        <ControlInput label="Colunas (Grid)" id="gridCols" value={config.gridCols} min={5} max={50} onChange={handleConfigChange} unit="" />
-                        <ControlInput label="Linhas (Grid)" id="gridRows" value={config.gridRows} min={5} max={30} onChange={handleConfigChange} unit="" />
-                        <ControlInput label="Espaçamento" id="charSpacing" value={config.charSpacing} min={1} max={10} onChange={handleConfigChange} unit="" />
-                        <ControlInput label="Símbolos Ativos" id="density" value={config.density} min={10} max={300} onChange={handleConfigChange} unit="" />
-                        <ControlInput label="Velocidade" id="speed" value={config.speed} min={0} max={20} onChange={handleConfigChange} unit="" />
-                        <ControlInput label="Tamanho" id="size" value={config.size} min={10} max={60} onChange={handleConfigChange} unit="px" />
-                        <ControlInput label="Mutação Símbolo" id="charMutationRate" value={config.charMutationRate} min={0} max={100} onChange={handleConfigChange} unit="%" />
-                        <ControlInput label="Flicker (Posição)" id="glitch" value={config.glitch} min={0} max={100} onChange={handleConfigChange} unit="%" />
-                        <ControlInput label="Tempo de Flicker" id="glitchTime" value={config.glitchTime} min={10} max={500} onChange={handleConfigChange} unit="ms" />
-                        <ControlInput label="Mov. Aleatório" id="randomMove" value={config.randomMove} min={0} max={10} onChange={handleConfigChange} unit="px" />
-                        <ControlInput label="Opacidade Base" id="baseOpacity" value={config.baseOpacity} min={10} max={100} onChange={handleConfigChange} unit="%" />
-                        <ControlInput label="Opacidade Flicker" id="opacityFlicker" value={config.opacityFlicker} min={0} max={50} onChange={handleConfigChange} unit="%" />
-                        <ControlInput label="Brilho (Glow)" id="glowIntensity" value={config.glowIntensity} min={0} max={20} onChange={handleConfigChange} unit="px" />
-                        <ControlInput label="Desfoque (Blur)" id="blurIntensity" value={config.blurIntensity} min={0} max={5} onChange={handleConfigChange} unit="px" />
-                        
-                        <div className="control-group">
-                            <label htmlFor="color">Cor</label>
-                            <input type="color" id="color" value={config.color} onChange={handleConfigChange} />
-                        </div>
-                    </div>
-                </div>
-            </fieldset>
-
-            <div id="embed-container" className="w-full">
-                <label className="embed-label" htmlFor="embed-code">
-                    Código de Incorporação
-                </label>
-                <textarea
-                    id="embed-code"
-                    readOnly
-                    ref={embedCodeRef}
-                    value={embedCode}
-                    rows={4}
-                ></textarea>
-                <button className="copy-button" onClick={handleCopy}>
-                    {copyButtonText}
-                </button>
-            </div>
-
-            <div id="export-container" className="w-full">
-                <label className="export-label">Exportar Vídeo (WEBM)</label>
-                <div className="export-controls">
-                    <div className="control-group">
-                        <label htmlFor="exportDuration">Duração (s)</label>
-                        <input
-                            type="number"
-                            id="exportDuration"
-                            value={exportDuration}
-                            onChange={(e) => setExportDuration(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                            min="1"
-                            max="60"
-                            disabled={isRecording}
-                            className="duration-input"
-                        />
-                    </div>
-                    <button className="export-button" onClick={handleStartRecording} disabled={isRecording}>
-                        {isRecording ? `Gravando...` : 'Iniciar Gravação'}
+        <div className="app-layout">
+            <main className="main-content">
+                <header className="header">
+                    <h1 className="title">Analisador Yautja</h1>
+                    <button className="config-toggle" onClick={() => setIsControlsVisible(v => !v)}>
+                        {isControlsVisible ? 'Fechar Painel' : 'Configurações'}
                     </button>
+                </header>
+
+                <div id="canvas-wrapper">
+                    <canvas id="yautja-canvas" ref={canvasRef}></canvas>
                 </div>
-                {isRecording && <div className="recording-indicator">GRAVANDO</div>}
-            </div>
+
+                <div id="embed-container">
+                    <label className="embed-label" htmlFor="embed-code">Código de Incorporação</label>
+                    <textarea id="embed-code" readOnly ref={embedCodeRef} value={embedCode} rows={3}></textarea>
+                    <button className="copy-button" onClick={handleCopy}>{copyButtonText}</button>
+                </div>
+            </main>
+            <aside className={`controls-sidebar ${isControlsVisible ? 'visible' : ''}`}>
+                <ControlsPanel 
+                    config={config}
+                    setConfig={setConfig}
+                    handleConfigChange={handleConfigChange}
+                />
+            </aside>
         </div>
     );
 }
+interface ControlInputProps {
+    label: string;
+    id: string;
+    value: string | number;
+    onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+    min?: number;
+    max?: number;
+    unit?: string;
+    type?: 'range' | 'color';
+}
 
-function ControlInput({ label, id, value, min, max, onChange, unit }) {
+function ControlInput({ label, id, value, min, max, onChange, unit, type = 'range' }: ControlInputProps) {
     return (
         <div className="control-group">
             <label htmlFor={id}>{label}</label>
-            <input type="range" id={id} min={min} max={max} value={value} onChange={onChange} />
-            <span className="text-xs">{Math.floor(value)}{unit}</span>
+            {type === 'range' ? (
+                <>
+                    <input type="range" id={id} min={min} max={max} value={value} onChange={onChange} />
+                    <span className="text-xs">{value}{unit}</span>
+                </>
+            ) : (
+                <input type="color" id={id} value={value as string} onChange={onChange} />
+            )}
         </div>
     );
 }
 
-const root = ReactDOM.createRoot(document.getElementById('root')!);
+const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<App />);
