@@ -107,6 +107,7 @@ body {
     height: 100%; /* Ocupa o espaço vertical disponível */
     flex-grow: 1;
     min-height: 300px;
+    position: relative; /* Adicionado para o posicionamento do overlay */
 }
 
 #yautja-canvas {
@@ -114,6 +115,25 @@ body {
     width: 100%;
     height: 100%;
 }
+
+.font-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.8);
+    color: var(--predator-red);
+    font-family: monospace;
+    font-size: 1.5rem;
+    z-index: 10;
+    text-shadow: 0 0 8px var(--predator-red);
+    letter-spacing: 0.1em;
+}
+
 
 /* --- Painel de Controles (Sidebar) --- */
 #controls-panel {

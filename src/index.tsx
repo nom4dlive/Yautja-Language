@@ -228,7 +228,8 @@ function App() {
     const [config, setConfig] = useState(defaultConfig);
     const configRef = useRef(config);
     configRef.current = config;
-
+    
+    const [isFontLoaded, setIsFontLoaded] = useState(false);
     const [isControlsVisible, setIsControlsVisible] = useState(false);
     const [copyButtonText, setCopyButtonText] = useState('Copiar Código');
     const embedCodeRef = useRef(null);
@@ -292,13 +293,28 @@ function App() {
     }, [config.mode, config.gridCols, config.gridRows, config.density, animateLoop]);
 
     useEffect(() => {
+        // A fonte já está embutida no CSS via base64, mas o canvas precisa de confirmação de que ela está pronta.
+        // Usamos document.fonts.load() para garantir que a fonte 'Yautja' esteja disponível antes de iniciar a animação.
+        document.fonts.load("20px Yautja").then(() => {
+            setIsFontLoaded(true);
+        }).catch(err => {
+            console.error('Falha ao carregar a fonte Yautja, usando fallback.', err);
+            // Mesmo em caso de falha, continuamos para que o app não trave.
+            setIsFontLoaded(true);
+        });
+    }, []);
+
+    useEffect(() => {
+        // A inicialização do canvas agora espera a fonte ser carregada.
+        if (!isFontLoaded) return;
+
         initCanvas();
         window.addEventListener('resize', initCanvas);
         return () => {
             window.removeEventListener('resize', initCanvas);
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
         };
-    }, [initCanvas]);
+    }, [initCanvas, isFontLoaded]); // Adicionamos isFontLoaded como dependência.
 
     useEffect(() => {
         document.documentElement.style.setProperty('--predator-red', config.color);
@@ -319,7 +335,8 @@ function App() {
                 </header>
 
                 <div id="canvas-wrapper">
-                    <canvas id="yautja-canvas" ref={canvasRef}></canvas>
+                    {!isFontLoaded && <div className="font-loading-overlay">CARREGANDO FONTE...</div>}
+                    <canvas id="yautja-canvas" ref={canvasRef} style={{ visibility: isFontLoaded ? 'visible' : 'hidden' }}></canvas>
                 </div>
 
                 <div id="embed-container">
